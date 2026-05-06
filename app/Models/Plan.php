@@ -28,6 +28,8 @@ class Plan extends Model
         return [
             'price_monthly' => 'decimal:2',
             'price_yearly' => 'decimal:2',
+            'listing_limit' => 'integer',
+            'duration_days' => 'integer',
             'features' => 'array',
             'is_popular' => 'boolean',
             'is_active' => 'boolean',

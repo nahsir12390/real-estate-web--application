@@ -104,6 +104,8 @@ class DemoAccountsSeeder extends Seeder
         $plan = Plan::where('slug', 'professional')->first();
 
         if ($plan) {
+            $durationDays = max(1, (int) $plan->duration_days);
+
             Subscription::updateOrCreate(
                 [
                     'agent_id' => $proAgent->id,
@@ -116,7 +118,7 @@ class DemoAccountsSeeder extends Seeder
                     'listing_limit' => $plan->listing_limit,
                     'used_listings' => 0,
                     'starts_at' => now()->toDateString(),
-                    'ends_at' => now()->addDays($plan->duration_days)->toDateString(),
+                    'ends_at' => now()->addDays($durationDays)->toDateString(),
                     'stripe_status' => 'active',
                 ]
             );
