@@ -7,6 +7,7 @@ use App\Models\PropertyImage;
 use App\Services\AgentListingQuotaService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -89,19 +90,19 @@ class PropertyForm extends Component
     {
         $validated = $this->validate([
             'title' => ['required', 'string', 'max:255'],
-            'description' => ['required', 'string'],
+            'description' => ['nullable', 'string'],
             'short_description' => ['nullable', 'string', 'max:500'],
-            'property_type' => ['required', 'in:house,apartment,land'],
-            'listing_type' => ['required', 'in:sale,rent'],
+            'property_type' => ['required', Rule::in(array_keys(Property::PROPERTY_TYPES))],
+            'listing_type' => ['required', Rule::in(array_keys(Property::LISTING_TYPES))],
             'price' => ['required', 'numeric', 'min:0'],
-            'price_unit' => ['nullable', 'string', 'max:20'],
+            'price_unit' => ['nullable', Rule::in(array_keys(Property::PRICE_UNITS))],
             'area' => ['nullable', 'numeric', 'min:0'],
-            'area_unit' => ['nullable', 'string', 'max:20'],
+            'area_unit' => ['nullable', Rule::in(array_keys(Property::AREA_UNITS))],
             'bedrooms' => ['nullable', 'integer', 'min:0'],
             'bathrooms' => ['nullable', 'integer', 'min:0'],
             'garages' => ['nullable', 'integer', 'min:0'],
             'year_built' => ['nullable', 'integer', 'min:1900', 'max:2100'],
-            'address' => ['required', 'string', 'max:255'],
+            'address' => ['nullable', 'string', 'max:255'],
             'city' => ['required', 'string', 'max:100'],
             'state' => ['required', 'string', 'max:100'],
             'zip_code' => ['nullable', 'string', 'max:20'],
@@ -125,40 +126,43 @@ class PropertyForm extends Component
             }
         }
 
+        $property = $this->propertyId
+            ? Property::query()
+                ->where('id', $this->propertyId)
+                ->where('agent_id', $agentId)
+                ->firstOrFail()
+            : null;
+        $normalized = $this->normalizePropertyPayload($validated);
+
         $payload = [
             'agent_id' => $agentId,
             'title' => $validated['title'],
-            'slug' => $this->propertyId ? Property::find($this->propertyId)->slug : $this->generateSlug($validated['title']),
-            'description' => $validated['description'],
+            'slug' => $property?->slug ?: $this->generateSlug($validated['title']),
+            'description' => $normalized['description'],
             'short_description' => $validated['short_description'] ?? null,
             'property_type' => $validated['property_type'],
             'listing_type' => $validated['listing_type'],
             'price' => $validated['price'],
-            'price_unit' => $validated['price_unit'] ?? 'total',
-            'area' => $this->nullableNumber($validated['area'] ?? null),
-            'area_unit' => $validated['area_unit'] ?? 'sqm',
-            'bedrooms' => $validated['bedrooms'] ?? null,
-            'bathrooms' => $validated['bathrooms'] ?? null,
-            'garages' => $validated['garages'] ?? null,
-            'year_built' => $validated['year_built'] ?? null,
-            'address' => $validated['address'],
+            'price_unit' => $normalized['price_unit'],
+            'area' => $normalized['area'],
+            'area_unit' => $normalized['area_unit'],
+            'bedrooms' => $normalized['bedrooms'],
+            'bathrooms' => $normalized['bathrooms'],
+            'garages' => $normalized['garages'],
+            'year_built' => $normalized['year_built'],
+            'address' => $normalized['address'],
             'city' => $validated['city'],
             'state' => $validated['state'],
             'zip_code' => $validated['zip_code'] ?? null,
             'country' => $validated['country'] ?? 'Nigeria',
-            'latitude' => $this->nullableNumber($validated['latitude'] ?? null),
-            'longitude' => $this->nullableNumber($validated['longitude'] ?? null),
-            'amenities' => $this->parseAmenities($validated['amenities'] ?? null),
+            'latitude' => $normalized['latitude'],
+            'longitude' => $normalized['longitude'],
+            'amenities' => $normalized['amenities'],
             'status' => Property::STATUS_PENDING,
             'rejection_reason' => null,
         ];
 
         if ($this->propertyId) {
-            $property = Property::query()
-                ->where('id', $this->propertyId)
-                ->where('agent_id', $agentId)
-                ->firstOrFail();
-
             $property->update($payload);
         } else {
             $property = Property::create($payload);
@@ -220,6 +224,59 @@ class PropertyForm extends Component
         return (float) $value;
     }
 
+    private function normalizePropertyPayload(array $validated): array
+    {
+        $type = $validated['property_type'];
+        $supports = fn (string $field): bool => Property::supportsDetailField($type, $field);
+        $location = trim(implode(', ', array_filter([
+            $validated['city'] ?? null,
+            $validated['state'] ?? null,
+            $validated['country'] ?? 'Nigeria',
+        ])));
+
+        return [
+            'description' => filled($validated['description'] ?? null)
+                ? trim($validated['description'])
+                : (trim($validated['short_description'] ?? '') ?: 'Property listing in '.$location),
+            'price_unit' => $validated['price_unit'] ?? ($validated['listing_type'] === Property::LISTING_RENT ? 'per_year' : 'total'),
+            'area' => $supports('area') ? $this->nullableNumber($validated['area'] ?? null) : null,
+            'area_unit' => $supports('area') ? ($validated['area_unit'] ?? 'sqm') : null,
+            'bedrooms' => $supports('bedrooms') ? ($validated['bedrooms'] ?? null) : null,
+            'bathrooms' => $supports('bathrooms') ? ($validated['bathrooms'] ?? null) : null,
+            'garages' => $supports('garages') ? ($validated['garages'] ?? null) : null,
+            'year_built' => $supports('year_built') ? ($validated['year_built'] ?? null) : null,
+            'address' => filled($validated['address'] ?? null) ? trim($validated['address']) : $location,
+            'latitude' => $this->nullableNumber($validated['latitude'] ?? null),
+            'longitude' => $this->nullableNumber($validated['longitude'] ?? null),
+            'amenities' => $supports('amenities') ? $this->parseAmenities($validated['amenities'] ?? null) : null,
+        ];
+    }
+
+    public function updatedPropertyType(): void
+    {
+        $this->clearUnsupportedDetailFields();
+    }
+
+    public function updatedListingType(string $listingType): void
+    {
+        $this->price_unit = $listingType === Property::LISTING_RENT ? 'per_year' : 'total';
+    }
+
+    private function clearUnsupportedDetailFields(): void
+    {
+        foreach (['bedrooms', 'bathrooms', 'garages', 'area', 'area_unit', 'year_built', 'amenities'] as $field) {
+            if (Property::supportsDetailField($this->property_type, $field)) {
+                continue;
+            }
+
+            $this->{$field} = match ($field) {
+                'amenities' => '',
+                'area_unit' => 'sqm',
+                default => null,
+            };
+        }
+    }
+
     private function generateSlug(string $title): string
     {
         $base = Str::slug($title);
@@ -236,6 +293,8 @@ class PropertyForm extends Component
 
     public function render()
     {
-        return view('livewire.agent.property-form');
+        return view('livewire.agent.property-form', [
+            'visibleDetailFields' => Property::detailFieldsForType($this->property_type),
+        ]);
     }
 }

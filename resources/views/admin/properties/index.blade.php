@@ -54,13 +54,13 @@
                     <h2 class="text-lg font-semibold text-zinc-900 dark:text-white">Add New Property</h2>
                     <p class="text-sm text-zinc-500 dark:text-zinc-400">Create a new property listing for any verified agent</p>
                 </div>
-                <svg id="toggleIcon" class="h-5 w-5 text-zinc-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg id="toggleIcon" class="h-5 w-5 text-zinc-500 transition-transform {{ $errors->any() ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                 </svg>
             </button>
             
-            <div id="addPropertyForm" class="hidden border-t border-zinc-200 p-4 dark:border-zinc-700">
-                <form method="POST" action="{{ route('admin.properties.store') }}" class="grid gap-4 md:grid-cols-3">
+            <div id="addPropertyForm" class="{{ $errors->any() ? '' : 'hidden' }} border-t border-zinc-200 p-4 dark:border-zinc-700">
+                <form method="POST" action="{{ route('admin.properties.store') }}" enctype="multipart/form-data" class="grid gap-4 md:grid-cols-3">
                     @csrf
                     
                     <!-- Agent Selection -->
@@ -69,7 +69,7 @@
                         <select name="agent_id" class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800" required>
                             <option value="">Choose a verified agent</option>
                             @foreach($verifiedAgents as $agent)
-                                <option value="{{ $agent->id }}">{{ $agent->user->name }} ({{ $agent->user->email }})</option>
+                                <option value="{{ $agent->id }}" @selected(old('agent_id') == $agent->id)>{{ $agent->user->name }} ({{ $agent->user->email }})</option>
                             @endforeach
                         </select>
                     </div>
@@ -77,51 +77,59 @@
                     <!-- Basic Info -->
                     <div class="md:col-span-2">
                         <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Title *</label>
-                        <input name="title" placeholder="e.g., Modern 3-Bedroom House in Ikeja" required 
+                        <input name="title" value="{{ old('title') }}" placeholder="e.g., Modern 3-Bedroom House in Ikeja" required
                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Property Type *</label>
-                        <select name="property_type" class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800" required>
+                        <select name="property_type" id="adminPropertyType" class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800" required>
                             <option value="">Select type</option>
-                            <option value="house">House</option>
-                            <option value="apartment">Apartment</option>
-                            <option value="land">Land</option>
+                            @foreach(\App\Models\Property::PROPERTY_TYPES as $value => $label)
+                                <option value="{{ $value }}" @selected(old('property_type') === $value)>{{ $label }}</option>
+                            @endforeach
                         </select>
                     </div>
 
                     <!-- Pricing -->
                     <div>
+                        <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Listing Type *</label>
+                        <select name="listing_type" id="adminListingType" class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800" required>
+                            @foreach(\App\Models\Property::LISTING_TYPES as $value => $label)
+                                <option value="{{ $value }}" @selected(old('listing_type', 'sale') === $value)>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
                         <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Price *</label>
-                        <input name="price" type="number" step="0.01" placeholder="0.00" required 
+                        <input name="price" value="{{ old('price') }}" type="number" step="0.01" placeholder="0.00" required
                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Price Unit</label>
-                        <select name="price_unit" class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
-                            <option value="total">Total Price</option>
-                            <option value="per_year">Per Year</option>
-                            <option value="per_month">Per Month</option>
+                        <select name="price_unit" id="adminPriceUnit" class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
+                            @foreach(\App\Models\Property::PRICE_UNITS as $value => $label)
+                                <option value="{{ $value }}" @selected(old('price_unit', 'total') === $value)>{{ $label }}</option>
+                            @endforeach
                         </select>
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Status</label>
                         <select name="status" class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
-                            <option value="approved">Approved (Publish Now)</option>
-                            <option value="pending">Pending Review</option>
-                            <option value="draft">Draft</option>
+                            <option value="approved" @selected(old('status', 'approved') === 'approved')>Approved (Publish Now)</option>
+                            <option value="pending" @selected(old('status') === 'pending')>Pending Review</option>
+                            <option value="draft" @selected(old('status') === 'draft')>Draft</option>
                         </select>
                     </div>
 
                     <!-- Location -->
                     <div class="md:col-span-2">
-                        <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Address *</label>
-                        <input name="address" placeholder="Street address" required 
+                        <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Address <span class="text-xs text-zinc-500">(Optional)</span></label>
+                        <input name="address" value="{{ old('address') }}" placeholder="Street address"
                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">City *</label>
-                        <input name="city" placeholder="e.g., Lagos" required 
+                        <input name="city" value="{{ old('city') }}" placeholder="e.g., Lagos" required
                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
                     </div>
                     <div>
@@ -129,52 +137,53 @@
                         <select name="state" class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800" required>
                             <option value="">Select State</option>
                             @foreach($nigerianStates as $ngState)
-                                <option value="{{ $ngState }}">{{ $ngState }}</option>
+                                <option value="{{ $ngState }}" @selected(old('state') === $ngState)>{{ $ngState }}</option>
                             @endforeach
                         </select>
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Country</label>
-                        <input name="country" value="Nigeria" 
+                        <input name="country" value="{{ old('country', 'Nigeria') }}"
                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Zip Code</label>
-                        <input name="zip_code" placeholder="e.g., 100001" 
+                        <input name="zip_code" value="{{ old('zip_code') }}" placeholder="e.g., 100001"
                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
                     </div>
 
                     <!-- Property Details -->
-                    <div>
+                    <div data-property-field="bedrooms">
                         <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Bedrooms</label>
-                        <input name="bedrooms" type="number" min="0" placeholder="e.g., 3" 
+                        <input name="bedrooms" value="{{ old('bedrooms') }}" type="number" min="0" placeholder="e.g., 3"
                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
                     </div>
-                    <div>
+                    <div data-property-field="bathrooms">
                         <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Bathrooms</label>
-                        <input name="bathrooms" type="number" min="0" placeholder="e.g., 2" 
+                        <input name="bathrooms" value="{{ old('bathrooms') }}" type="number" min="0" placeholder="e.g., 2"
                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
                     </div>
-                    <div>
+                    <div data-property-field="garages">
                         <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Garages</label>
-                        <input name="garages" type="number" min="0" placeholder="e.g., 1" 
+                        <input name="garages" value="{{ old('garages') }}" type="number" min="0" placeholder="e.g., 1"
                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
                     </div>
-                    <div>
+                    <div data-property-field="area">
                         <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Area</label>
-                        <input name="area" type="number" step="0.01" placeholder="e.g., 200" 
+                        <input name="area" value="{{ old('area') }}" type="number" step="0.01" placeholder="e.g., 200"
                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
                     </div>
-                    <div>
+                    <div data-property-field="area">
                         <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Area Unit</label>
                         <select name="area_unit" class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
-                            <option value="sqm">Square Meters</option>
-                            <option value="sqft">Square Feet</option>
+                            @foreach(\App\Models\Property::AREA_UNITS as $value => $label)
+                                <option value="{{ $value }}" @selected(old('area_unit', 'sqm') === $value)>{{ $label }}</option>
+                            @endforeach
                         </select>
                     </div>
-                    <div>
+                    <div data-property-field="year_built">
                         <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Year Built</label>
-                        <input name="year_built" type="number" min="1900" max="2100" placeholder="e.g., 2020" 
+                        <input name="year_built" value="{{ old('year_built') }}" type="number" min="1900" max="2100" placeholder="e.g., 2020"
                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
                     </div>
 
@@ -182,42 +191,50 @@
                     <div class="md:col-span-3">
                         <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Short Description</label>
                         <textarea name="short_description" rows="2" placeholder="Brief summary (max 500 chars)"
-                                  class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800"></textarea>
+                                  class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">{{ old('short_description') }}</textarea>
                     </div>
                     <div class="md:col-span-3">
-                        <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Full Description *</label>
-                        <textarea name="description" rows="4" placeholder="Detailed property description..." required
-                                  class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800"></textarea>
+                        <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Full Description <span class="text-xs text-zinc-500">(Optional)</span></label>
+                        <textarea name="description" rows="4" placeholder="Detailed property description..."
+                                  class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">{{ old('description') }}</textarea>
                     </div>
 
                     <!-- Amenities -->
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-3" data-property-field="amenities">
                         <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Amenities</label>
                         <textarea name="amenities" rows="2" 
                                   placeholder="Enter amenities (comma-separated)&#10;e.g.: Borehole, Security, Parking, Swimming Pool"
-                                  class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800"></textarea>
+                                  class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">{{ old('amenities') }}</textarea>
+                    </div>
+
+                    <!-- Images -->
+                    <div class="md:col-span-3">
+                        <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Property Images <span class="text-xs text-zinc-500">(Optional)</span></label>
+                        <input name="images[]" type="file" multiple accept="image/*"
+                               class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800">
+                        <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">You can upload multiple images. The first selected image will be used as the primary image.</p>
                     </div>
 
                     <!-- Coordinates -->
                     <div>
                         <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Latitude <span class="text-xs text-zinc-500">(Optional)</span></label>
-                        <input name="latitude" type="number" step="0.00000001" placeholder="e.g., 6.5244" 
+                        <input name="latitude" value="{{ old('latitude') }}" type="number" step="0.00000001" placeholder="e.g., 6.5244"
                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Longitude <span class="text-xs text-zinc-500">(Optional)</span></label>
-                        <input name="longitude" type="number" step="0.00000001" placeholder="e.g., 3.3792" 
+                        <input name="longitude" value="{{ old('longitude') }}" type="number" step="0.00000001" placeholder="e.g., 3.3792"
                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
                     </div>
 
                     <!-- Options -->
                     <div class="md:col-span-3 flex items-center gap-6">
                         <label class="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-                            <input type="checkbox" name="is_featured" value="1" class="rounded border-zinc-300">
+                            <input type="checkbox" name="is_featured" value="1" @checked(old('is_featured')) class="rounded border-zinc-300">
                             Featured Property
                         </label>
                         <label class="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-                            <input type="checkbox" name="is_premium" value="1" class="rounded border-zinc-300">
+                            <input type="checkbox" name="is_premium" value="1" @checked(old('is_premium')) class="rounded border-zinc-300">
                             Premium Listing
                         </label>
                     </div>
@@ -339,6 +356,10 @@
                                 </td>
                                 <td class="px-4 py-3">
                                     <div class="flex flex-col gap-2">
+                                        <a href="{{ route('admin.properties.show', $property) }}"
+                                           class="inline-flex w-fit items-center justify-center rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
+                                            View Details
+                                        </a>
                                         @if($property->status === 'pending')
                                             <div class="flex flex-wrap gap-2">
                                                 <form method="POST" action="{{ route('admin.properties.approve', $property) }}" class="inline">
@@ -416,6 +437,8 @@
     </div>
 
     <script>
+        const propertyTypeFields = @json(\App\Models\Property::TYPE_DETAIL_FIELDS);
+
         function toggleAddProperty() {
             const form = document.getElementById('addPropertyForm');
             const icon = document.getElementById('toggleIcon');
@@ -437,5 +460,43 @@
         function hideRejectModal() {
             document.getElementById('rejectModal').style.display = 'none';
         }
+
+        function updateAdminPropertyFields() {
+            const typeSelect = document.getElementById('adminPropertyType');
+            const selectedType = typeSelect?.value;
+            const visibleFields = selectedType ? (propertyTypeFields[selectedType] || []) : [];
+
+            document.querySelectorAll('[data-property-field]').forEach((wrapper) => {
+                const field = wrapper.dataset.propertyField;
+                const shouldShow = visibleFields.includes(field);
+
+                wrapper.classList.toggle('hidden', ! shouldShow);
+                wrapper.querySelectorAll('input, select, textarea').forEach((input) => {
+                    input.disabled = ! shouldShow;
+                });
+            });
+        }
+
+        function updateAdminPriceUnit() {
+            const listingType = document.getElementById('adminListingType');
+            const priceUnit = document.getElementById('adminPriceUnit');
+
+            if (! listingType || ! priceUnit || priceUnit.dataset.touched === '1') {
+                return;
+            }
+
+            priceUnit.value = listingType.value === 'rent' ? 'per_year' : 'total';
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('adminPropertyType')?.addEventListener('change', updateAdminPropertyFields);
+            document.getElementById('adminListingType')?.addEventListener('change', updateAdminPriceUnit);
+            document.getElementById('adminPriceUnit')?.addEventListener('change', (event) => {
+                event.currentTarget.dataset.touched = '1';
+            });
+
+            updateAdminPropertyFields();
+            updateAdminPriceUnit();
+        });
     </script>
 </x-layouts::app>

@@ -49,6 +49,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
 
             Route::get('properties', [AdminController::class, 'properties'])->name('properties.index');
             Route::post('properties', [AdminController::class, 'storeProperty'])->name('properties.store');
+            Route::get('properties/{property}', [AdminController::class, 'showProperty'])->name('properties.show');
             Route::patch('properties/{property}/approve', [AdminController::class, 'approveProperty'])->name('properties.approve');
             Route::patch('properties/{property}/reject', [AdminController::class, 'rejectProperty'])->name('properties.reject');
             Route::delete('properties/{property}', [AdminController::class, 'deleteProperty'])->name('properties.delete');

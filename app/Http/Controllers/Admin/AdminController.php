@@ -8,6 +8,7 @@ use App\Models\AgentVerification;
 use App\Models\Inquiry;
 use App\Models\Plan;
 use App\Models\Property;
+use App\Models\PropertyImage;
 use App\Models\Report;
 use App\Models\Setting;
 use App\Models\Subscription;
@@ -17,6 +18,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class AdminController extends Controller
@@ -191,7 +193,7 @@ class AdminController extends Controller
         $properties = Property::query()
             ->select([
                 'id', 'agent_id', 'title', 'property_type', 'listing_type', 'price',
-                'city', 'state', 'country', 'status', 'approved_by', 'created_at',
+                'city', 'state', 'country', 'status', 'approved_by', 'rejection_reason', 'created_at',
             ])
             ->with([
                 'agent:id,user_id',
@@ -217,23 +219,35 @@ class AdminController extends Controller
         return view('admin.properties.index', compact('properties', 'status', 'type', 'listingType', 'search', 'verifiedAgents', 'nigerianStates'));
     }
 
+    public function showProperty(Property $property): View
+    {
+        $property->load([
+            'agent.user.profile',
+            'approver:id,name,email',
+            'images' => fn ($query) => $query->ordered(),
+        ]);
+
+        return view('admin.properties.show', compact('property'));
+    }
+
     public function storeProperty(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'agent_id' => ['required', 'exists:agents,id'],
             'title' => ['required', 'string', 'max:255'],
-            'description' => ['required', 'string'],
+            'description' => ['nullable', 'string'],
             'short_description' => ['nullable', 'string', 'max:500'],
-            'property_type' => ['required', 'in:house,apartment,land'],
+            'property_type' => ['required', Rule::in(array_keys(Property::PROPERTY_TYPES))],
+            'listing_type' => ['required', Rule::in(array_keys(Property::LISTING_TYPES))],
             'price' => ['required', 'numeric', 'min:0'],
-            'price_unit' => ['nullable', 'string', 'max:20'],
+            'price_unit' => ['nullable', Rule::in(array_keys(Property::PRICE_UNITS))],
             'area' => ['nullable', 'numeric', 'min:0'],
-            'area_unit' => ['nullable', 'string', 'max:20'],
+            'area_unit' => ['nullable', Rule::in(array_keys(Property::AREA_UNITS))],
             'bedrooms' => ['nullable', 'integer', 'min:0'],
             'bathrooms' => ['nullable', 'integer', 'min:0'],
             'garages' => ['nullable', 'integer', 'min:0'],
             'year_built' => ['nullable', 'integer', 'min:1900', 'max:2100'],
-            'address' => ['required', 'string', 'max:255'],
+            'address' => ['nullable', 'string', 'max:255'],
             'city' => ['required', 'string', 'max:100'],
             'state' => ['required', 'string', 'max:100'],
             'country' => ['nullable', 'string', 'max:100'],
@@ -244,6 +258,8 @@ class AdminController extends Controller
             'is_featured' => ['nullable', 'boolean'],
             'is_premium' => ['nullable', 'boolean'],
             'status' => ['nullable', 'in:draft,pending,approved'],
+            'images' => ['nullable', 'array'],
+            'images.*' => ['image', 'max:4096'],
         ]);
 
         $agent = Agent::findOrFail((int) $validated['agent_id']);
@@ -252,41 +268,46 @@ class AdminController extends Controller
             return back()->withErrors(['agent_id' => 'Selected agent must be verified.'])->withInput();
         }
 
-        Property::create([
+        $payload = $this->normalizePropertyPayload($validated);
+        $status = $validated['status'] ?? Property::STATUS_APPROVED;
+
+        $property = Property::create([
             'agent_id' => $agent->id,
             'title' => $validated['title'],
             'slug' => $this->generatePropertySlug($validated['title']),
-            'description' => $validated['description'],
+            'description' => $payload['description'],
             'short_description' => $validated['short_description'] ?? null,
             'property_type' => $validated['property_type'],
-            'listing_type' => Property::LISTING_SALE,
+            'listing_type' => $validated['listing_type'],
             'price' => $validated['price'],
-            'price_unit' => $validated['price_unit'] ?? 'total',
-            'area' => $validated['area'] ?? null,
-            'area_unit' => $validated['area_unit'] ?? 'sqm',
-            'bedrooms' => $validated['bedrooms'] ?? null,
-            'bathrooms' => $validated['bathrooms'] ?? null,
-            'garages' => $validated['garages'] ?? null,
-            'year_built' => $validated['year_built'] ?? null,
-            'address' => $validated['address'],
+            'price_unit' => $payload['price_unit'],
+            'area' => $payload['area'],
+            'area_unit' => $payload['area_unit'],
+            'bedrooms' => $payload['bedrooms'],
+            'bathrooms' => $payload['bathrooms'],
+            'garages' => $payload['garages'],
+            'year_built' => $payload['year_built'],
+            'address' => $payload['address'],
             'city' => $validated['city'],
             'state' => $validated['state'],
             'country' => $validated['country'] ?? 'Nigeria',
             'zip_code' => $validated['zip_code'] ?? null,
-            'latitude' => $validated['latitude'] ?? null,
-            'longitude' => $validated['longitude'] ?? null,
-            'amenities' => $this->parseAmenities($validated['amenities'] ?? null),
+            'latitude' => $payload['latitude'],
+            'longitude' => $payload['longitude'],
+            'amenities' => $payload['amenities'],
             'is_featured' => (bool) ($validated['is_featured'] ?? false),
             'is_premium' => (bool) ($validated['is_premium'] ?? false),
-            'status' => $validated['status'] ?? Property::STATUS_APPROVED,
-            'approved_by' => ($validated['status'] ?? Property::STATUS_APPROVED) === Property::STATUS_APPROVED ? auth()->id() : null,
-            'approved_at' => ($validated['status'] ?? Property::STATUS_APPROVED) === Property::STATUS_APPROVED ? now() : null,
-            'published_at' => ($validated['status'] ?? Property::STATUS_APPROVED) === Property::STATUS_APPROVED ? now() : null,
+            'status' => $status,
+            'approved_by' => $status === Property::STATUS_APPROVED ? auth()->id() : null,
+            'approved_at' => $status === Property::STATUS_APPROVED ? now() : null,
+            'published_at' => $status === Property::STATUS_APPROVED ? now() : null,
         ]);
+
+        $this->storePropertyImages($request, $property);
 
         Cache::forget('admin:dashboard:stats');
 
-        return back()->with('status', 'Sale property created and approved successfully.');
+        return back()->with('status', 'Property listing created successfully.');
     }
 
     public function approveProperty(Property $property): RedirectResponse
@@ -660,6 +681,64 @@ class AdminController extends Controller
             ->filter()
             ->values()
             ->all();
+    }
+
+    private function normalizePropertyPayload(array $validated): array
+    {
+        $type = $validated['property_type'];
+        $supports = fn (string $field): bool => Property::supportsDetailField($type, $field);
+        $location = trim(implode(', ', array_filter([
+            $validated['city'] ?? null,
+            $validated['state'] ?? null,
+            $validated['country'] ?? 'Nigeria',
+        ])));
+
+        return [
+            'description' => filled($validated['description'] ?? null)
+                ? trim($validated['description'])
+                : (trim($validated['short_description'] ?? '') ?: 'Property listing in '.$location),
+            'price_unit' => $validated['price_unit'] ?? ($validated['listing_type'] === Property::LISTING_RENT ? 'per_year' : 'total'),
+            'area' => $supports('area') ? $this->nullableNumber($validated['area'] ?? null) : null,
+            'area_unit' => $supports('area') ? ($validated['area_unit'] ?? 'sqm') : null,
+            'bedrooms' => $supports('bedrooms') ? ($validated['bedrooms'] ?? null) : null,
+            'bathrooms' => $supports('bathrooms') ? ($validated['bathrooms'] ?? null) : null,
+            'garages' => $supports('garages') ? ($validated['garages'] ?? null) : null,
+            'year_built' => $supports('year_built') ? ($validated['year_built'] ?? null) : null,
+            'address' => filled($validated['address'] ?? null) ? trim($validated['address']) : $location,
+            'latitude' => $this->nullableNumber($validated['latitude'] ?? null),
+            'longitude' => $this->nullableNumber($validated['longitude'] ?? null),
+            'amenities' => $supports('amenities') ? $this->parseAmenities($validated['amenities'] ?? null) : null,
+        ];
+    }
+
+    private function nullableNumber(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return (float) $value;
+    }
+
+    private function storePropertyImages(Request $request, Property $property): void
+    {
+        if (! $request->hasFile('images')) {
+            return;
+        }
+
+        foreach ($request->file('images') as $index => $image) {
+            if (! $image->isValid()) {
+                continue;
+            }
+
+            PropertyImage::create([
+                'property_id' => $property->id,
+                'image_path' => $image->store('properties', 'public'),
+                'is_primary' => $index === 0,
+                'order' => $index + 1,
+                'alt_text' => $property->title,
+            ]);
+        }
     }
 
     private function nigerianStates(): array

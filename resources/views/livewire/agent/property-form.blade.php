@@ -16,17 +16,18 @@
 
     <form wire:submit="save" class="grid gap-3 md:grid-cols-3">
         <input wire:model="title" placeholder="Title" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900 md:col-span-2">
-        <select wire:model="property_type" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
-            <option value="house">House</option>
-            <option value="apartment">Apartment</option>
-            <option value="land">Land</option>
+        <select wire:model.live="property_type" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+            @foreach(\App\Models\Property::PROPERTY_TYPES as $value => $label)
+                <option value="{{ $value }}">{{ $label }}</option>
+            @endforeach
         </select>
         <input wire:model="short_description" placeholder="Short description" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900 md:col-span-3">
         <textarea wire:model="description" rows="4" placeholder="Description" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900 md:col-span-3"></textarea>
 
-        <select wire:model="listing_type" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
-            <option value="sale">For Sale</option>
-            <option value="rent">For Rent</option>
+        <select wire:model.live="listing_type" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+            @foreach(\App\Models\Property::LISTING_TYPES as $value => $label)
+                <option value="{{ $value }}">{{ $label }}</option>
+            @endforeach
         </select>
         @php($hasActiveSubscription = (bool) auth()->user()?->agent?->activeSubscription()->exists())
         @unless($hasActiveSubscription)
@@ -34,23 +35,34 @@
         @endunless
         <input wire:model="price" type="number" step="0.01" placeholder="Price" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
         <select wire:model="price_unit" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
-            <option value="total">Total</option>
-            <option value="per_month">Per Month</option>
-            <option value="per_year">Per Year</option>
+            @foreach(\App\Models\Property::PRICE_UNITS as $value => $label)
+                <option value="{{ $value }}">{{ $label }}</option>
+            @endforeach
         </select>
 
-        <input wire:model="area" type="number" step="0.01" placeholder="Area" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
-        <select wire:model="area_unit" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
-            <option value="sqm">sqm</option>
-            <option value="sqft">sqft</option>
-        </select>
-        <input wire:model="year_built" type="number" placeholder="Year built" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+        @if(in_array('area', $visibleDetailFields, true))
+            <input wire:model="area" type="number" step="0.01" placeholder="Area (optional)" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+            <select wire:model="area_unit" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+                @foreach(\App\Models\Property::AREA_UNITS as $value => $label)
+                    <option value="{{ $value }}">{{ $label }}</option>
+                @endforeach
+            </select>
+        @endif
+        @if(in_array('year_built', $visibleDetailFields, true))
+            <input wire:model="year_built" type="number" placeholder="Year built (optional)" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+        @endif
 
-        <input wire:model="bedrooms" type="number" placeholder="Bedrooms" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
-        <input wire:model="bathrooms" type="number" placeholder="Bathrooms" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
-        <input wire:model="garages" type="number" placeholder="Garages" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+        @if(in_array('bedrooms', $visibleDetailFields, true))
+            <input wire:model="bedrooms" type="number" placeholder="Bedrooms (optional)" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+        @endif
+        @if(in_array('bathrooms', $visibleDetailFields, true))
+            <input wire:model="bathrooms" type="number" placeholder="Bathrooms (optional)" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+        @endif
+        @if(in_array('garages', $visibleDetailFields, true))
+            <input wire:model="garages" type="number" placeholder="Garages (optional)" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+        @endif
 
-        <input wire:model="address" placeholder="Address" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900 md:col-span-2">
+        <input wire:model="address" placeholder="Address (optional)" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900 md:col-span-2">
         <input wire:model="city" placeholder="City" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
         <input wire:model="state" placeholder="State" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
         <input wire:model="zip_code" placeholder="Zip code" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
@@ -64,7 +76,9 @@
             <label class="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Longitude <span class="text-xs text-zinc-500">(Optional)</span></label>
             <input wire:model="longitude" type="number" step="0.00000001" placeholder="e.g., 3.3792" class="w-full rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
         </div>
-        <input wire:model="amenities" placeholder="Amenities (comma separated)" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900 md:col-span-3">
+        @if(in_array('amenities', $visibleDetailFields, true))
+            <input wire:model="amenities" placeholder="Amenities (optional, comma separated)" class="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900 md:col-span-3">
+        @endif
 
         <!-- Image Upload -->
         <div class="md:col-span-3">

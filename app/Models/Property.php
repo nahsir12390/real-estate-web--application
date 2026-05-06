@@ -17,8 +17,36 @@ class Property extends Model
     public const TYPE_APARTMENT = 'apartment';
     public const TYPE_LAND = 'land';
 
+    public const PROPERTY_TYPES = [
+        self::TYPE_HOUSE => 'House',
+        self::TYPE_APARTMENT => 'Apartment',
+        self::TYPE_LAND => 'Land',
+    ];
+
     public const LISTING_SALE = 'sale';
     public const LISTING_RENT = 'rent';
+
+    public const LISTING_TYPES = [
+        self::LISTING_SALE => 'For Sale',
+        self::LISTING_RENT => 'For Rent',
+    ];
+
+    public const PRICE_UNITS = [
+        'total' => 'Total Price',
+        'per_month' => 'Per Month',
+        'per_year' => 'Per Year',
+    ];
+
+    public const AREA_UNITS = [
+        'sqm' => 'Square Meters',
+        'sqft' => 'Square Feet',
+    ];
+
+    public const TYPE_DETAIL_FIELDS = [
+        self::TYPE_HOUSE => ['bedrooms', 'bathrooms', 'garages', 'area', 'year_built', 'amenities'],
+        self::TYPE_APARTMENT => ['bedrooms', 'bathrooms', 'area', 'year_built', 'amenities'],
+        self::TYPE_LAND => ['area', 'amenities'],
+    ];
 
     public const STATUS_DRAFT = 'draft';
     public const STATUS_PENDING = 'pending';
@@ -167,5 +195,15 @@ class Property extends Model
         }
 
         return $query->where('title', 'like', "%{$search}%");
+    }
+
+    public static function detailFieldsForType(?string $type): array
+    {
+        return self::TYPE_DETAIL_FIELDS[$type] ?? self::TYPE_DETAIL_FIELDS[self::TYPE_HOUSE];
+    }
+
+    public static function supportsDetailField(?string $type, string $field): bool
+    {
+        return in_array($field, self::detailFieldsForType($type), true);
     }
 }
